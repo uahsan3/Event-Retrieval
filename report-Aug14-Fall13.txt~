@@ -1,0 +1,7 @@
+I have figured out a simple (and efficient) way to extract key frames of the video. The plan is to extract these 20-25 frames first and then apply GIST on them to construct matrices which are of reasonable sizes. 
+
+The way to do so is to use ffmpeg command. The command is:  ffmpeg -i -5vWztiU7aI.mp4 -vf select='eq(pict_type\,I),setpts=N/(25*TB)' -q 1  ./%03d.ppm
+
+This command extracts keyframes from a video, and stores it as ppm files on disk. My plan is to extract these keyframes and then sample them randomly, picking out a random 25 frames from these. I tested this out extensively on a video and discovered that this method extracts reasonable scene changes in a video. 
+
+So now I have to code this thing up to work with all of my videos on disk. 

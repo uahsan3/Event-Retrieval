@@ -12,6 +12,8 @@ extern "C" {
 }
 #include <cmath>
 #include "gist-classifier.hpp"
+#include <algorithm>
+#include <utility>
 
 using namespace cv;
 using namespace std;
@@ -27,6 +29,12 @@ const static int orientations_per_scale[50]={8,8,4};
 	    "Simple and efficient access" at link:*/
 /* http://www.cs.iit.edu/~agam/cs512/lect-notes/opencv-intro/opencv-intro.html#SECTION00053000000000000000*/
 // Source: http://www.cs.cornell.edu/~yuhsin/opencv-stuff/gist-classifier.cpp
+
+// function for sorting values of frame differences in descending order
+typedef std::pair<float,int> mypair;
+bool comparator ( const mypair& l, const mypair& r)
+		   { return l.first < r.first; }
+
 void convert_IplImage_to_LEAR(IplImage* src, color_image_t* dst) {
 		  assert(src->width == GIST_SIZE && src->height == GIST_SIZE);
 		  assert(src->depth == IPL_DEPTH_8U);
@@ -66,7 +74,7 @@ float* my_compute_gist(IplImage* img, IplImage* rsz) {
 
 int main()
 {
-				
+				int num_frames;	
 				// Read filenames from text file into a vector of strings
 				vector<string> VideoFilenames;
 				ifstream myfile("/home/unaiza/Dropbox/EVVEstuff/video_files_final.txt");
@@ -82,8 +90,7 @@ int main()
 				
 				
 				// Open the video file
-				// for (int i = 0; i <= VideoFilenames.size(); i++)
-				for (int i = 0; i <= 0; i++)
+				for (int i = 19; i != 20; i++) //VideoFilenames.size(); i++) 
 				{
 								string full_path = "../Dataset_few/" + VideoFilenames[i];
 								cout << full_path << endl;
@@ -96,81 +103,113 @@ int main()
 												return 1;
 								}
 								
-								// get the frame rate
-								double frame_rate = capture.get (CV_CAP_PROP_FPS);
 								bool stop(false);
-								capture.set (CV_CAP_PROP_FPS, 15); // set frame rate=15
+								capture.set (CV_CAP_PROP_FPS, 20); // set frame rate=1
+								double frame_rate = capture.get (CV_CAP_PROP_FPS);
+								cout << frame_rate << endl;
+								num_frames = capture.get (CV_CAP_PROP_FRAME_COUNT);
 
 								cv::Mat frame; // current video frame
 								// cv::namedWindow ("Extracted frame");
 							  vector<Mat> rgb; // vector for holding r g b values - of type Mat
-								vector<float> gist_desc; // vector for storing descriptors for each frame [one column per frame]
+								vector< vector<float> >  gist_desc; // a two dimensional vector where each row is a vector of float values holding the descriptor for each frame
 
-								// for all frames in video
+								// for all frames in video capture the frame, compute  GIST on it and store in gist_desc
 								// color_image_t *im;
-								int k = 0;
+								int k=0;
+
+								cv::Mat prev_frame;	
+								vector<std::pair < float, int > >  sum_of_diffs; // create a vector of pairs where each pair is the diffs and its corresponding frame number 
+								
 								while (!stop) 
 								{
-												k++;
-												// read next frame if any
-												if (!capture.read(frame))
-												{
-																cout << "Can't read frame!" << endl;
-																break;
-												} else { cout << "frame captured!" << k << endl; }
+										k++;
 
+										// read next frame if any
+										if (!capture.read(frame))
+										{
+												cout << "Can't read frame!" << endl;
+												break;
+										}
 
-												// convert to IplImage from cv::Mat	
-												IplImage current_frame = frame;
+										cv::Mat diff_frame;
+										cv::Scalar sum_of_diff;
 
-												// trying out GIST only on frame 150
-												if (k == 15)
-												{
-																IplImage* gist_img = cvCreateImage(cvSize(GIST_SIZE, GIST_SIZE), IPL_DEPTH_8U, 3);
-																float* desc = my_compute_gist(&current_frame, gist_img);
-																/* Should contain feature_vector_length (960) float values */
-																for (int i = 0; i < feature_vector_length; i++) {
-																		gist_desc.push_back(desc[i]);
-																		printf("%d: %f\n", i, gist_desc[i]);
+										if (k != 1) // ensuring that frame 1 is not included - thus used for frame differencing
+										{
+														absdiff(prev_frame, frame, diff_frame); // calculating element wise difference between the two frames
+														sum_of_diff = sum(diff_frame); // adding the differences to give scalar (3 channels)
+										
+														// calculating sum of three channels 
+														float sum = sum_of_diff.val[0] + sum_of_diff.val[1] + sum_of_diff.val[2];	
+														// cout << sum  << " "; // printing out the sums of differences for each frame with previous frame (except 1)
+														sum_of_diffs.push_back(make_pair(sum, k)); // fills a vector of values of sums of diffs
+										}
+										
 
-																}
-																free(desc);
-															 // cvReleaseImage(&current_frame);
-																break;
-												}
+									  // Calculating average pixel intensity of each channel of the frame	
+										/*
+										cv::Scalar avgPixelIntensity = cv::mean(frame);
 
+										// convert to IplImage from cv::Mat	
+										IplImage current_frame = frame;
+										
+									  // create an image that's the destination image (resized)	
+										IplImage* gist_img = cvCreateImage(cvSize(GIST_SIZE, GIST_SIZE), IPL_DEPTH_8U, 3);
 
+										float* desc = my_compute_gist(&current_frame, gist_img);
+										vector<float> row; // create an empty row
+										for (int j = 0; j < feature_vector_length; j++)
+										{
+												// Checking to see if the frame has average pixel values in each channel above a threshold [this is to filter out blank frames]
+												if (avgPixelIntensity.val[0] > 20 && avgPixelIntensity.val[1] > 20 && avgPixelIntensity.val[2] > 20)
+														row.push_back(desc[j]);
+										}
+                    if (avgPixelIntensity.val[0] > 20 && avgPixelIntensity.val[1] > 20 && avgPixelIntensity.val[2] > 20)
+												gist_desc.push_back(row); // Add the row to the main vector
+										cout << "One frame descriptor size: " <<  row.size() << "  " << "Total descriptor size: " << gist_desc.size() << endl;
+										free(desc);
+										*/
 
-												
-										  	/*if (k == 15) 
-												{
-																split(frame, rgb);
-																namedWindow("b");
-																namedWindow("g");
-																namedWindow("r");
-															  imshow("b", rgb[0]);
-																imshow("g", rgb[1]);
-																imshow("r", rgb[2]);
-																waitKey(0);
-																cout << "frame size : " << frame.size().width << ", " << frame.size().height << endl;
-																cout << "R size : " << rgb[2].size().width << ", " << rgb[2].size().height << endl;
-																cout << "G size : " << rgb[1].size().width << ", " << rgb[1].size().height <<  endl;
-																cout << "B size : " << rgb[0].size().width << ", " << rgb[0].size().height <<  endl;
-																break;
-												}*/
-												   // waitKey(0);
-															//	namedWindow("Frame 0", CV_WINDOW_AUTOSIZE);
-															//	imshow("Frames", frame);
-															//	waitKey();//without this image won't be shown
-														//return 0;//OK
-							 
-												
-												// insert code to calculate GIST descriptor on frames
+										// checking if its the last frame
+										if (k == num_frames) {
+												cout << num_frames << endl;
+												break;
+										}
+
+										prev_frame = frame.clone();  // cloning frame in another cv::Mat structure to be compared for frame differencing
+
+										
+										//break;*/
 								}
-				
-			  // close the video file
-				capture.release();
+
+								// sorting the vector of pairs in descending order - each pair is difference value (with prev. frame) and the corresponding frame no.
+								sort (sum_of_diffs.begin(), sum_of_diffs.end(), comparator);
+
+								// iterating through the vector of pairs and printing out the values in it
+								typedef std::vector<std::pair<float, int> > vector_type;
+							  for (vector_type::const_iterator pos = sum_of_diffs.begin(); pos != sum_of_diffs.end(); ++pos)
+										cout << pos -> first << " " << pos -> second << endl;
+												
+
+
+								/*
+
+								// writing the descriptor to a text file - each text file for one video - each row in a text file corresponding to a frame
+								string full_file_name = VideoFilenames[i] + ".txt";
+								ofstream output_file(full_file_name.c_str());
+								ostream_iterator<float> output_iterator(output_file, ",");
+								for ( int i = 0 ; i < gist_desc.size() ; i++ ) 
+								{
+												copy(gist_desc.at(i).begin(), gist_desc.at(i).end(), output_iterator);
+												output_file << "\n";
+								}
+								*/
+
+
+								// close the video file
+								capture.release();
 				}
 
 }
-								
+

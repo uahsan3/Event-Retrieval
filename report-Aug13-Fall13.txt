@@ -1,0 +1,7 @@
+Today I have worked on implementing key frame extraction from videos. Specifically, I have been trying to get the sum of absolute differences between frames of the captured video. Then I am checking the peaks of the sum of differences. 
+
+The way I am checking the peaks is that I am trying to make a vector of pairs - with each pair corresponding to the sum of difference and the frame number. This is so that when I sort on the basis of sum of differences (in descending order - because I need the maximum differences to select key frames) Istill have the index of the sorted elements - that is, the frame numbers. Hence I would select the key frames as being the ones immediately before and after the maximum difference. 
+
+I am running into problems relating to implementing this effectively. I am still relatively new to STL containers in C++ and hence facing debugging issues. 
+
+I also tried to capture the frames at a lower rate of 1 fps but it's not working! I don't know why. I'm doing the right thing here. This one hasn't been solved yet. 
